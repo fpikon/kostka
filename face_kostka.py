@@ -78,6 +78,11 @@ class FaceKostka:
         else:
             return False
 
+    def clear(self):
+        self.__faces = []
+        for color in Color:
+            self.__faces.append(np.ones((3,3), dtype=np.int8)*color)
+
     def get_string(self):
         string = ""
 
