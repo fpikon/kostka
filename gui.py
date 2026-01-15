@@ -1,16 +1,24 @@
+import copy
+
 import cv2
 import twophase.solver  as sv
 import enums
 import kamera
+import random
+import kamera_params
 from cube import *
 from tkinter import *
 
 global close_camera
+global face_colors
+global last_valid
 
 def start_gui(cube):
     global close_camera
     global face_colors
+    global last_valid
     face_colors = np.ones((3, 3), np.int8) * enums.ColorCamera.Undetected
+    last_valid = np.ones((3, 3), np.int8) * enums.ColorCamera.Undetected
     width = 60  # width of a facelet in pixels
     facelet_id = [[[0 for col in range(3)] for row in range(3)] for face in range(6)]
     t = ("U", "R", "F", "D", "L", "B")
@@ -20,7 +28,8 @@ def start_gui(cube):
               "F": "red",
               "R": "blue",
               "B": "orange",
-              "D": "yellow"}
+              "D": "yellow",
+              "N": "black"}
 
     def get_solution():
         s = convert_strings(cube.get_string(), False)
@@ -50,9 +59,32 @@ def start_gui(cube):
         cube.clear()
         update_facelet_rects()
 
+    def randomize():
+        moves = []
+        length = 15
+        moves_base = ["U", "R", "F", "D", "L", "B"]
+        last_move = ""
+
+        for i in range(length):
+            moves_vec = copy.deepcopy(moves_base)
+            if i != 0:
+                moves_vec.remove(last_move)
+
+            move_index = random.randint(0, len(moves_vec)-1)
+            n = random.randint(1, 3)
+
+            last_move = moves_vec[move_index]
+            moves.append(moves_vec[move_index] + str(n))
+
+        show_text("Scramble:")
+        moves_str = " ".join(moves)
+        show_text(moves_str)
+
+        for move in moves:
+            cube.make_move(move)
+        update_facelet_rects()
 
     def show_text(txt):
-        """Display messages."""
         print(txt)
         display.insert(INSERT, txt + "\n")
         root.update_idletasks()
@@ -160,25 +192,27 @@ def start_gui(cube):
         update_kamera(camera)
 
     def update_kamera(camera):
-        global close_camera, face_colors
+        global close_camera, face_colors, last_valid
         if close_camera:
             cv2.destroyAllWindows()
             return
         face_colors = kamera.get_image(camera)
-        root.after(20, update_kamera, camera)
+        if face_colors[1, 1] != enums.ColorCamera.Undetected:
+            last_valid = face_colors
+        root.after(50, update_kamera, camera)
 
     def close_kamera():
         global close_camera
         close_camera = True
 
     def import_face():
-        global face_colors
-        cube.update_face(face_colors)
+        global last_valid
+        cube.update_face(last_valid)
         update_facelet_rects()
 
     root = Tk()
     root.wm_title("Kostka_symulacja_solver")
-    canvas = Canvas(root, width=12 * width + 20, height=9.5 * width + 20)
+    canvas = Canvas(root, width=15 * width + 20, height=9.5 * width + 20)
     canvas.pack()
 
     # buttons
@@ -190,11 +224,13 @@ def start_gui(cube):
     bimport_window = canvas.create_window(10, 10 + 2 * width, anchor=NW, window=bimport)
 
     bgetsolve = Button(text="Get solution", height=2, width=10, relief=RAISED, command=get_solution)
-    bsolve_window = canvas.create_window(10, 10 + 6.5 * width, anchor=NW, window=bgetsolve)
+    bsolve_window = canvas.create_window(10, 20 + 6 * width, anchor=NW, window=bgetsolve)
     bsolve = Button(text="Solve", height=2, width=10, relief=RAISED, command=solve)
-    bsolve_window = canvas.create_window(10, 10 + 7.5 * width, anchor=NW, window=bsolve)
-    bclean = Button(text="Clean", height=1, width=10, relief=RAISED, command=clean)
-    bclean_window = canvas.create_window(10, 10 + 8.5 * width, anchor=NW, window=bclean)
+    bsolve_window = canvas.create_window(10, 20 + 6.8 * width, anchor=NW, window=bsolve)
+    bclean = Button(text="Clean", height=2, width=10, relief=RAISED, command=clean)
+    bclean_window = canvas.create_window(10, 20 + 7.6 * width, anchor=NW, window=bclean)
+    brand = Button(text="Randomise", height=2, width=10, relief=RAISED, command=randomize)
+    brand_window = canvas.create_window(10, 20 + 8.4 * width, anchor=NW, window=brand)
 
     # move buttons
     bmoveU = Button(text="U", height=1, width=10, relief=RAISED, command=move_U)
@@ -239,13 +275,18 @@ def start_gui(cube):
     bmoveD3_window = canvas.create_window(10 + 9.5 * width, 9 * width, anchor=NW, window=bmoveD3)
 
     # flip
-
     bmovex= Button(text="x", height=3, width=5, relief=RAISED, command=move_x)
     bmovex_window = canvas.create_window(10 + 11 * width, 6.5 * width, anchor=NW, window=bmovex)
     bmovey= Button(text="y", height=3, width=5, relief=RAISED, command=move_y)
     bmovey_window = canvas.create_window(10 + 11 * width, 7.5 * width, anchor=NW, window=bmovey)
     bmovez= Button(text="z", height=3, width=5, relief=RAISED, command=move_z)
     bmovez_window = canvas.create_window(10 + 11 * width, 8.5 * width, anchor=NW, window=bmovez)
+
+    # inputs for camera params
+    #gaus_blur = Entry(textvariable=kamera_params.GAUSSIAN_BLUR)
+    #gaus_blur_window = canvas.create_window(10 + 11 * width, 8.5 * width, anchor=NW, window=gaus_blur)
+
+
 
     # display and text_window
     display = Text(height=7, width=39)

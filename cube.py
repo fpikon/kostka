@@ -108,6 +108,8 @@ class Cube:
                             string += "B"
                         case Color.D:
                             string += "D"
+                        case _:
+                            string += "N"
 
         return string
 
