@@ -3,7 +3,7 @@ import numpy as np
 
 from enums import *
 
-class FaceKostka:
+class Cube:
     def __init__(self):
         self.__faces = []
         for color in Color:
@@ -82,6 +82,12 @@ class FaceKostka:
         self.__faces = []
         for color in Color:
             self.__faces.append(np.ones((3,3), dtype=np.int8)*color)
+
+    def update_face(self, face_array):
+        middle = face_array[1, 1]
+        if middle == ColorCamera.Undetected:
+            return
+        self.__faces[middle] = face_array
 
     def get_string(self):
         string = ""

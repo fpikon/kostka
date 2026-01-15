@@ -1,9 +1,16 @@
+import cv2
 import twophase.solver  as sv
-from face_kostka import *
+import enums
+import kamera
+from cube import *
 from tkinter import *
 
-def start_gui():
-    cube = FaceKostka()
+global close_camera
+
+def start_gui(cube):
+    global close_camera
+    global face_colors
+    face_colors = np.ones((3, 3), np.int8) * enums.ColorCamera.Undetected
     width = 60  # width of a facelet in pixels
     facelet_id = [[[0 for col in range(3)] for row in range(3)] for face in range(6)]
     t = ("U", "R", "F", "D", "L", "B")
@@ -19,12 +26,10 @@ def start_gui():
         s = convert_strings(cube.get_string(), False)
         show_text("Cube string:")
         show_text(s)
-        solution = sv.solve(s, 20, 5).split(" ")
+        solution = sv.solve(s, 20, 5)
         show_text("Solution:")
-        for move in solution:
-            show_text(move)
-        return solution
-
+        show_text(solution)
+        return solution.split(" ")
 
     def solve():
         solution = get_solution()
@@ -148,12 +153,42 @@ def start_gui():
         cube.make_move("z")
         update_facelet_rects()
 
+    def start_kamera():
+        global close_camera
+        close_camera = False
+        camera = cv2.VideoCapture(2)
+        update_kamera(camera)
+
+    def update_kamera(camera):
+        global close_camera, face_colors
+        if close_camera:
+            cv2.destroyAllWindows()
+            return
+        face_colors = kamera.get_image(camera)
+        root.after(20, update_kamera, camera)
+
+    def close_kamera():
+        global close_camera
+        close_camera = True
+
+    def import_face():
+        global face_colors
+        cube.update_face(face_colors)
+        update_facelet_rects()
+
     root = Tk()
     root.wm_title("Kostka_symulacja_solver")
     canvas = Canvas(root, width=12 * width + 20, height=9.5 * width + 20)
     canvas.pack()
 
     # buttons
+    bstart_kamera = Button(text="Start camera", height=2, width=10, relief=RAISED, command=start_kamera)
+    bstart_kamera_window = canvas.create_window(10, 10, anchor=NW, window=bstart_kamera)
+    bclose_kamera = Button(text="Close camera", height=2, width=10, relief=RAISED, command=close_kamera)
+    bclose_kamera_window = canvas.create_window(10, 10 + width, anchor=NW, window=bclose_kamera)
+    bimport = Button(text="Import face", height=2, width=10, relief=RAISED, command=import_face)
+    bimport_window = canvas.create_window(10, 10 + 2 * width, anchor=NW, window=bimport)
+
     bgetsolve = Button(text="Get solution", height=2, width=10, relief=RAISED, command=get_solution)
     bsolve_window = canvas.create_window(10, 10 + 6.5 * width, anchor=NW, window=bgetsolve)
     bsolve = Button(text="Solve", height=2, width=10, relief=RAISED, command=solve)
