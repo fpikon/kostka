@@ -10,7 +10,7 @@ def find_squares(image):
     hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
     h, s, v = cv2.split(hsv)
 
-    v_bin = cv2.threshold(v, vision_params.BLACK_TRH, 255, cv2.THRESH_BINARY)[1]
+    v_bin = cv2.threshold(v, vision_params.get("BLACK_TRH"), 255, cv2.THRESH_BINARY)[1]
 
     contours, _ = cv2.findContours(v_bin, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
 
@@ -18,9 +18,9 @@ def find_squares(image):
 
     for cnt in contours:
         area = cv2.contourArea(cnt)
-        if area < 1000:
+        if area < vision_params.get("MIN_SQUARE_SIZE")**2:
             continue
-        if area > 10000:
+        if area > vision_params.get("MAX_SQUARE_SIZE")**2:
             continue
 
         peri = cv2.arcLength(cnt, True)
@@ -67,7 +67,9 @@ def detect_color(image):
     max_pixels = 0
     detected_color = enums.Color.Undetected
 
-    for color, (lower, upper) in vision_params.COLOR_RANGES.items():
+    for color, (lower, upper) in vision_params.get("COLOR_RANGES").items():
+        lower = np.array(lower)
+        upper = np.array(upper)
         mask = cv2.inRange(hsv, lower, upper)
         count = cv2.countNonZero(mask)
 
@@ -77,20 +79,16 @@ def detect_color(image):
 
     return detected_color
 
-def detect_cube(camera):
+def detect_cube(camera, show_binarized):
     ret, frame = camera.read()
     frame_size = frame.shape[:2]
-
-    black_mask = np.zeros(frame_size, dtype=np.uint8)
-    white_mask = np.zeros(frame_size, dtype=np.uint8)
-    color_mask = np.zeros(frame_size, dtype=np.uint8)
 
     detected_colors = np.zeros((3, 3), dtype=np.uint8) * vision_params.Color.Undetected
 
     # blur
-    frame_blur = cv2.GaussianBlur(frame, (5, 5), vision_params.GAUSSIAN_BLUR)
+    frame_blur = cv2.GaussianBlur(frame, (5, 5), vision_params.get("GAUSSIAN_BLUR"))
 
-    bin, squares = find_squares(frame_blur)
+    frame_bin, squares = find_squares(frame_blur)
 
     if len(squares) == 9:
         squares = sort_squares_robust(squares)
@@ -100,18 +98,21 @@ def detect_cube(camera):
             col = i % 3
             x, y, w, h = cv2.boundingRect(square)
 
-            pad = 5
-            croped_square = frame_blur[y + pad:y + h - pad, x + pad:x + w - pad]
+            pad = 1
 
-            detected_color = detect_color(croped_square)
+            cropped_square = frame_blur[y + pad:y + h - pad, x + pad:x + w - pad]
+
+            detected_color = detect_color(cropped_square)
             detected_colors[row, col] = detected_color
-            cv2.putText(frame, f"{(row, col)}" + str(detected_color), (x + 10, y + 30), cv2.FONT_HERSHEY_SIMPLEX, 0.3,
-                        (0, 0, 255), 1)
+            cv2.putText(frame, f"{(row, col)}" + str(enums.Color(int(detected_color))), (x + 10, y + 30), cv2.FONT_HERSHEY_SIMPLEX, 0.3,
+                        (0, 255, 0), 1)
             i += 1
 
 
-    cv2.drawContours(frame, squares, -1, (0, 0, 255), 1)
+    cv2.drawContours(frame, squares, -1, (0, 255, 0), 1)
 
     cv2.imshow('camera', frame)
+    if show_binarized:
+        cv2.imshow('binarized', frame_bin)
 
     return detected_colors

@@ -1,7 +1,6 @@
 import cube
 import gui
-
-kostka = cube.Cube()
+import vision_params
 
 
 okno = gui.Gui()

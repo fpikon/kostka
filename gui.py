@@ -7,6 +7,7 @@ import tkinter as tk
 import enums
 from tkinter import font
 import vision
+import vision_params
 
 
 class Gui:
@@ -25,6 +26,7 @@ class Gui:
         self.text_box = None
         self.camera = cv2.VideoCapture(2)
         self.camera_flag = False
+        self.camera_bin_flag = False
 
         self.kostka = cube.Cube()
         self.kostka_squares = [[[0 for col in range(3)] for row in range(3)] for face in range(6)]
@@ -34,6 +36,7 @@ class Gui:
         self.create_buttons_moves()
         self.create_textbox()
         self.create_cube_view()
+        self.create_vision_sliders()
         self.canvas.pack()
         self.root.mainloop()
 
@@ -51,11 +54,14 @@ class Gui:
         self.canvas.create_window(10 + self.button_size["width"], 10 + self.button_size["height"], anchor=tk.NW,
                                   window=but_rand)
 
-        but_start_camera = tk.Button(self.root, text="Start Camera", height=2, width=20, command=self.start_camera)
+        but_start_camera = tk.Button(self.root, text="Start camera", height=2, width=20, command=self.start_camera)
         self.canvas.create_window(10, 10 + 7 * self.button_size["height"], anchor=tk.NW, window=but_start_camera)
 
-        but_stop_camera = tk.Button(self.root, text="Stop Camera", height=2, width=20, command=self.stop_camera)
+        but_stop_camera = tk.Button(self.root, text="Stop camera", height=2, width=20, command=self.stop_camera)
         self.canvas.create_window(10, 10 + 8 * self.button_size["height"], anchor=tk.NW, window=but_stop_camera)
+
+        but_camera_bin = tk.Button(self.root, text="Binary camera view", height=2, width=20, command=self.show_binarized)
+        self.canvas.create_window(10, 10 + 9 * self.button_size["height"], anchor=tk.NW, window=but_camera_bin)
 
     def create_buttons_moves(self):
         b_move_U = tk.Button(text="U", height=1, width=10, command=lambda: self.make_move("U"))
@@ -130,7 +136,6 @@ class Gui:
         self.canvas.create_window(20 + 6 * self.square_size + 2 * self.button_size["width"],
                                   10 + 9.5 * self.button_size["height"], anchor=tk.NW, window=b_move_D3)
 
-
     def create_textbox(self):
         text_width = 70
         text_height = 8
@@ -148,6 +153,31 @@ class Gui:
                     self.kostka_squares[face][col][row] = self.canvas.create_rectangle(x, y, x + self.square_size, y + self.square_size, fill="gray")
                     if [row, col] == [1, 1]:
                         self.canvas.create_text(x + self.square_size // 2, y + self.square_size // 2, font=("", 14), text=str(enums.Face(face)), state=tk.DISABLED)
+
+    def create_vision_sliders(self):
+        slider_blur = tk.Scale(self.canvas, from_=0, to=10, orient=tk.HORIZONTAL, label="BlurLevel",
+                               command = lambda val: vision_params.set("GAUSSIAN_BLUR", val))
+        slider_blur.set(vision_params.get("GAUSSIAN_BLUR"))
+        self.canvas.create_window(20 + 12 * self.square_size, 10 + 3 * self.square_size, anchor=tk.NW,
+                                  window=slider_blur)
+
+        slider_thr = tk.Scale(self.canvas, from_=0, to=255, orient=tk.HORIZONTAL, label="BinThreshold",
+                               command = lambda val: vision_params.set("BLACK_TRH", val))
+        slider_thr.set(vision_params.get("BLACK_TRH"))
+        self.canvas.create_window(20 + 12 * self.square_size, 10 + 4 * self.square_size, anchor=tk.NW,
+                                  window=slider_thr)
+
+        slider_size_min = tk.Scale(self.canvas, from_=0, to=100, orient=tk.HORIZONTAL, label="SquaresMin",
+                               command = lambda val: vision_params.set("MIN_SQUARE_SIZE", val))
+        slider_size_min.set(vision_params.get("MIN_SQUARE_SIZE"))
+        self.canvas.create_window(20 + 12 * self.square_size, 10 + 5 * self.square_size, anchor=tk.NW,
+                                  window=slider_size_min)
+
+        slider_size_max = tk.Scale(self.canvas, from_=0, to=200, orient=tk.HORIZONTAL, label="SquaresMax",
+                              command = lambda val: vision_params.set("MAX_SQUARE_SIZE", val))
+        slider_size_max.set(vision_params.get("MAX_SQUARE_SIZE"))
+        self.canvas.create_window(20 + 12 * self.square_size, 10 + 6 * self.square_size, anchor=tk.NW,
+                                  window=slider_size_max)
 
     def update_cube(self):
         s = self.kostka.get_string()
@@ -230,8 +260,11 @@ class Gui:
         if self.camera_flag is False:
             cv2.destroyAllWindows()
             return
-        face_colors = vision.detect_cube(self.camera)
+        face_colors = vision.detect_cube(self.camera, self.camera_bin_flag)
         self.root.after(20, self.update_camera)
 
     def stop_camera(self):
         self.camera_flag = False
+
+    def show_binarized(self):
+        self.camera_bin_flag = not self.camera_bin_flag
