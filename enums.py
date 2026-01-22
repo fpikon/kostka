@@ -1,8 +1,8 @@
 from enum import IntEnum
 
 
-class Color(IntEnum):
-    """Kolory kostki"""
+class Face(IntEnum):
+    """Twarze kostki"""
     U = 0
     L = 1
     F = 2
@@ -10,8 +10,11 @@ class Color(IntEnum):
     B = 4
     D = 5
 
-class ColorCamera(IntEnum):
-    """Kolory kostki z kamery"""
+    def __str__(self):
+        return str(self.name)
+
+class Color(IntEnum):
+    """Kolory kostki"""
     White = 0
     Green = 1
     Red = 2
@@ -20,22 +23,22 @@ class ColorCamera(IntEnum):
     Yellow = 5
     Undetected = 6
 
-def str_ColorCamera(num):
-    str = ""
-    match num:
-        case ColorCamera.White:
-            str += "White"
-        case ColorCamera.Green:
-            str += "Green"
-        case ColorCamera.Red:
-            str += "Red"
-        case ColorCamera.Blue:
-            str += "Blue"
-        case ColorCamera.Orange:
-            str += "Orange"
-        case ColorCamera.Yellow:
-            str += "Yellow"
-        case ColorCamera.Undetected:
-            str += "Undetected"
+    def __str__(self):
+        return str(self.name)
 
-    return str
+def to_Face(s):
+    face = -1
+    match s.upper():
+        case "U":
+            face = Face.U
+        case "L":
+            face = Face.L
+        case "F":
+            face = Face.F
+        case "R":
+            face = Face.R
+        case "B":
+            face = Face.B
+        case "D":
+            face = Face.D
+    return face

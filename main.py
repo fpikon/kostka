@@ -1,11 +1,8 @@
+import cube
 import gui
-import cv2
-import kamera
-from cube import Cube
-from threading import Thread
 
-kostka = Cube()
+kostka = cube.Cube()
 
-gui.start_gui(kostka)
 
-cv2.destroyAllWindows()
+okno = gui.Gui()
+okno.start()

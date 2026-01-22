@@ -6,33 +6,33 @@ from enums import *
 class Cube:
     def __init__(self):
         self.__faces = []
-        for color in Color:
-            self.__faces.append(np.ones((3,3), dtype=np.int8)*color)
+        for color in Face:
+            self.__faces.append(np.ones((3,3), dtype=Color) * color)
 
     def __str__(self):
         string = ""
 
-        face_u = self.__faces[Color.U]
+        face_u = self.__faces[Face.U]
         for row in face_u:
             string += " " * 7
             for u in row:
-                string += str(u) + " "
+                string += str(Face(u)) + " "
             string += "\n"
         string += "\n"
 
         for i in range(3):
-            for j in range(Color.L, Color.B + 1):
+            for j in range(Face.L, Face.B + 1):
                 for k in self.__faces[j][i]:
-                    string += str(k) + " "
+                    string += str(Face(k)) + " "
                 string += " "
             string += "\n"
         string += "\n"
 
-        face_d = self.__faces[Color.D]
+        face_d = self.__faces[Face.D]
         for row in face_d:
             string += " " * 7
             for d in row:
-                string += str(d) + " "
+                string += str(Face(d)) + " "
             string += "\n"
 
         return string
@@ -52,25 +52,12 @@ class Cube:
             b = (i - 9 * a) // 3
             c = (i - 9 * a) % 3
 
-            match string[i]:
-                case "U":
-                    new_faces[a][b][c] = Color.U
-                    counter[Color.U] += 1
-                case "L":
-                    new_faces[a][b][c] = Color.L
-                    counter[Color.L] += 1
-                case "F":
-                    new_faces[a][b][c] = Color.F
-                    counter[Color.F] += 1
-                case "R":
-                    new_faces[a][b][c] = Color.R
-                    counter[Color.R] += 1
-                case "B":
-                    new_faces[a][b][c] = Color.B
-                    counter[Color.B] += 1
-                case "D":
-                    new_faces[a][b][c] = Color.D
-                    counter[Color.D] += 1
+            new_face_rect = to_Face(string[i])
+            if new_face_rect == -1:
+                return False
+            new_faces[a][b][c] = new_face_rect
+            counter[new_face_rect] += 1
+
 
         if all(x == 9 for x in counter):
             self.__faces = new_faces
@@ -80,14 +67,20 @@ class Cube:
 
     def clear(self):
         self.__faces = []
-        for color in Color:
-            self.__faces.append(np.ones((3,3), dtype=np.int8)*color)
+        for color in Face:
+            self.__faces.append(np.ones((3,3), dtype=Color) * color)
+
 
     def update_face(self, face_array):
-        middle = face_array[1, 1]
-        if middle == ColorCamera.Undetected:
-            return
+        if len(face_array) != 3:
+            return False
+        if len(face_array[0]) != 3:
+            return False
+        middle = face_array[1][1]
+        if middle == Color.Undetected:
+            return False
         self.__faces[middle] = face_array
+        return True
 
     def get_string(self):
         string = ""
@@ -95,21 +88,7 @@ class Cube:
         for face in self.__faces:
             for row in face:
                 for i in row:
-                    match i:
-                        case Color.U:
-                            string += "U"
-                        case Color.L:
-                            string += "L"
-                        case Color.F:
-                            string += "F"
-                        case Color.R:
-                            string += "R"
-                        case Color.B:
-                            string += "B"
-                        case Color.D:
-                            string += "D"
-                        case _:
-                            string += "N"
+                    string += str(Face(i))
 
         return string
 
@@ -136,7 +115,7 @@ class Cube:
                     self.make_move("F")
                     self.make_move("y")
                 case "F":
-                    self.__rotate_face(Color.F, [Color.U, Color.D, Color.L, Color.R])
+                    self.__rotate_face(Face.F, [Face.U, Face.D, Face.L, Face.R])
                 case "R":
                     self.make_move("y")
                     self.make_move("F")
@@ -150,34 +129,34 @@ class Cube:
                     self.make_move("F")
                     self.make_move("y2")
                 case "x":
-                    new_faces[Color.U] = self.__faces[Color.F]
-                    new_faces[Color.B] = np.rot90(self.__faces[Color.U], 2)
-                    new_faces[Color.D] = np.rot90(self.__faces[Color.B], 2)
-                    new_faces[Color.F] = self.__faces[Color.D]
+                    new_faces[Face.U] = self.__faces[Face.F]
+                    new_faces[Face.B] = np.rot90(self.__faces[Face.U], 2)
+                    new_faces[Face.D] = np.rot90(self.__faces[Face.B], 2)
+                    new_faces[Face.F] = self.__faces[Face.D]
                     self.__faces = new_faces
-                    self.__faces[Color.R] = np.rot90(self.__faces[Color.R], -1)
-                    self.__faces[Color.L] = np.rot90(self.__faces[Color.L], 1)
+                    self.__faces[Face.R] = np.rot90(self.__faces[Face.R], -1)
+                    self.__faces[Face.L] = np.rot90(self.__faces[Face.L], 1)
                 case "y":
-                    new_faces[Color.F] = self.__faces[Color.R]
-                    new_faces[Color.R] = self.__faces[Color.B]
-                    new_faces[Color.B] = self.__faces[Color.L]
-                    new_faces[Color.L] = self.__faces[Color.F]
+                    new_faces[Face.F] = self.__faces[Face.R]
+                    new_faces[Face.R] = self.__faces[Face.B]
+                    new_faces[Face.B] = self.__faces[Face.L]
+                    new_faces[Face.L] = self.__faces[Face.F]
                     self.__faces = new_faces
-                    self.__faces[Color.U] = np.rot90(self.__faces[Color.U], -1)
-                    self.__faces[Color.D] = np.rot90(self.__faces[Color.D], 1)
+                    self.__faces[Face.U] = np.rot90(self.__faces[Face.U], -1)
+                    self.__faces[Face.D] = np.rot90(self.__faces[Face.D], 1)
                 case "z":
-                    new_faces[Color.U] = np.rot90(self.__faces[Color.L], -1)
-                    new_faces[Color.R] = np.rot90(self.__faces[Color.U], -1)
-                    new_faces[Color.D] = np.rot90(self.__faces[Color.R], -1)
-                    new_faces[Color.L] = np.rot90(self.__faces[Color.D], -1)
+                    new_faces[Face.U] = np.rot90(self.__faces[Face.L], -1)
+                    new_faces[Face.R] = np.rot90(self.__faces[Face.U], -1)
+                    new_faces[Face.D] = np.rot90(self.__faces[Face.R], -1)
+                    new_faces[Face.L] = np.rot90(self.__faces[Face.D], -1)
                     self.__faces = new_faces
-                    self.__faces[Color.F] = np.rot90(self.__faces[Color.F], -1)
-                    self.__faces[Color.B] = np.rot90(self.__faces[Color.B], 1)
+                    self.__faces[Face.F] = np.rot90(self.__faces[Face.F], -1)
+                    self.__faces[Face.B] = np.rot90(self.__faces[Face.B], 1)
 
         return True
 
     def __rotate_face(self, face, adj_faces = None):
-        matrix = np.ones((5, 5), np.int8) * -1
+        matrix = np.ones((5, 5), Color)
 
         matrix[1:4, 1:4] = self.__faces[face]
         if adj_faces:

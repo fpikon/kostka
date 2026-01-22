@@ -1,65 +1,203 @@
 import copy
-
+import random as rand
 import cv2
-import twophase.solver  as sv
+import cube
+import twophase.solver as solver
+import tkinter as tk
 import enums
-import kamera
-import random
-import kamera_params
-from cube import *
-from tkinter import *
+from tkinter import font
+import vision
 
-global close_camera
-global face_colors
-global last_valid
 
-def start_gui(cube):
-    global close_camera
-    global face_colors
-    global last_valid
-    face_colors = np.ones((3, 3), np.int8) * enums.ColorCamera.Undetected
-    last_valid = np.ones((3, 3), np.int8) * enums.ColorCamera.Undetected
-    width = 60  # width of a facelet in pixels
-    facelet_id = [[[0 for col in range(3)] for row in range(3)] for face in range(6)]
-    t = ("U", "R", "F", "D", "L", "B")
-    cols = ("yellow", "green", "red", "white", "blue", "orange")
-    colors = {"U": "white",
-              "L": "green",
-              "F": "red",
-              "R": "blue",
-              "B": "orange",
-              "D": "yellow",
-              "N": "black"}
+class Gui:
+    def __init__(self):
+        self.square_size = 55
+        self.canvas_size = {"width": 950, "height": 600}
+        self.font_size = 8
+        self.button_size = {"width": self.font_size*10, "height": self.font_size*6}
 
-    def get_solution():
-        s = convert_strings(cube.get_string(), False)
-        show_text("Cube string:")
-        show_text(s)
-        solution = sv.solve(s, 20, 5)
-        show_text("Solution:")
-        show_text(solution)
-        return solution.split(" ")
+        self.root = tk.Tk()
+        self.root.wm_title("Kostka_GUI")
+        my_font = font.nametofont("TkDefaultFont") #.nametofont("TkFixedFont")
+        my_font.configure(size=self.font_size)
+        self.canvas = tk.Canvas(self.root, width=self.canvas_size["width"], height=self.canvas_size["height"])
 
-    def solve():
-        solution = get_solution()
-        perform_moves((0, solution))
+        self.text_box = None
+        self.camera = cv2.VideoCapture(2)
+        self.camera_flag = False
 
-    def perform_moves(args):
-        i = args[0]
-        solution = args[1]
-        if i >= len(solution):
+        self.kostka = cube.Cube()
+        self.kostka_squares = [[[0 for col in range(3)] for row in range(3)] for face in range(6)]
+
+    def start(self):
+        self.create_buttons_main()
+        self.create_buttons_moves()
+        self.create_textbox()
+        self.create_cube_view()
+        self.canvas.pack()
+        self.root.mainloop()
+
+    def create_buttons_main(self):
+        but_get_sol = tk.Button(self.root, text="Get Solution", height=2, width=10, command=self.get_solution)
+        self.canvas.create_window(10, 10, anchor=tk.NW, window=but_get_sol)
+
+        but_sol = tk.Button(self.root, text="Solve", height=2, width=10, command=self.solve)
+        self.canvas.create_window(10, 10 + self.button_size["height"], anchor=tk.NW, window=but_sol)
+
+        but_clear = tk.Button(self.root, text="Clear", height=2, width=10, command=self.clear_cube)
+        self.canvas.create_window(10 + self.button_size["width"], 10, anchor=tk.NW, window=but_clear)
+
+        but_rand = tk.Button(self.root, text="Scramble", height=2, width=10, command=self.scramble)
+        self.canvas.create_window(10 + self.button_size["width"], 10 + self.button_size["height"], anchor=tk.NW,
+                                  window=but_rand)
+
+        but_start_camera = tk.Button(self.root, text="Start Camera", height=2, width=20, command=self.start_camera)
+        self.canvas.create_window(10, 10 + 7 * self.button_size["height"], anchor=tk.NW, window=but_start_camera)
+
+        but_stop_camera = tk.Button(self.root, text="Stop Camera", height=2, width=20, command=self.stop_camera)
+        self.canvas.create_window(10, 10 + 8 * self.button_size["height"], anchor=tk.NW, window=but_stop_camera)
+
+    def create_buttons_moves(self):
+        b_move_U = tk.Button(text="U", height=1, width=10, command=lambda: self.make_move("U"))
+        self.canvas.create_window(20 + 6 * self.square_size, 10 + 7 * self.button_size["height"], anchor=tk.NW,
+                                  window=b_move_U)
+
+        b_move_L = tk.Button(text="L", height=1, width=10, command=lambda: self.make_move("L"))
+        self.canvas.create_window(20 + 6 * self.square_size, 10 + 7.5 * self.button_size["height"], anchor=tk.NW,
+                                  window=b_move_L)
+
+        b_move_F = tk.Button(text="F", height=1, width=10, command=lambda: self.make_move("F"))
+        self.canvas.create_window(20 + 6 * self.square_size, 10 + 8 * self.button_size["height"], anchor=tk.NW,
+                                  window=b_move_F)
+
+        b_move_R = tk.Button(text="R", height=1, width=10, command=lambda: self.make_move("R"))
+        self.canvas.create_window(20 + 6 * self.square_size, 10 + 8.5 * self.button_size["height"], anchor=tk.NW,
+                                  window=b_move_R)
+
+        b_move_B = tk.Button(text="B", height=1, width=10, command=lambda: self.make_move("B"))
+        self.canvas.create_window(20 + 6 * self.square_size, 10 + 9 * self.button_size["height"], anchor=tk.NW,
+                                  window=b_move_B)
+
+        b_move_D = tk.Button(text="D", height=1, width=10, command=lambda: self.make_move("D"))
+        self.canvas.create_window(20 + 6 * self.square_size, 10 + 9.5 * self.button_size["height"], anchor=tk.NW,
+                                  window=b_move_D)
+
+        b_move_U2 = tk.Button(text="U2", height=1, width=10, command=lambda: self.make_move("U2"))
+        self.canvas.create_window(20 + 6 * self.square_size + self.button_size["width"],
+                                  10 + 7 * self.button_size["height"], anchor=tk.NW, window=b_move_U2)
+
+        b_move_L2 = tk.Button(text="L2", height=1, width=10, command=lambda: self.make_move("L2"))
+        self.canvas.create_window(20 + 6 * self.square_size + self.button_size["width"],
+                                  10 + 7.5 * self.button_size["height"], anchor=tk.NW, window=b_move_L2)
+
+        b_move_F2 = tk.Button(text="F2", height=1, width=10, command=lambda: self.make_move("F2"))
+        self.canvas.create_window(20 + 6 * self.square_size + self.button_size["width"],
+                                  10 + 8 * self.button_size["height"], anchor=tk.NW, window=b_move_F2)
+
+        b_move_R2 = tk.Button(text="R2", height=1, width=10, command=lambda: self.make_move("R2"))
+        self.canvas.create_window(20 + 6 * self.square_size + self.button_size["width"],
+                                  10 + 8.5 * self.button_size["height"], anchor=tk.NW, window=b_move_R2)
+
+        b_move_B2 = tk.Button(text="B2", height=1, width=10, command=lambda: self.make_move("B2"))
+        self.canvas.create_window(20 + 6 * self.square_size + self.button_size["width"],
+                                  10 + 9 * self.button_size["height"], anchor=tk.NW, window=b_move_B2)
+
+        b_move_D2 = tk.Button(text="D2", height=1, width=10, command=lambda: self.make_move("D2"))
+        self.canvas.create_window(20 + 6 * self.square_size + self.button_size["width"],
+                                  10 + 9.5 * self.button_size["height"], anchor=tk.NW, window=b_move_D2)
+
+        b_move_U3 = tk.Button(text="U3/U'", height=1, width=10, command=lambda: self.make_move("U3"))
+        self.canvas.create_window(20 + 6 * self.square_size + 2 * self.button_size["width"],
+                                  10 + 7 * self.button_size["height"], anchor=tk.NW, window=b_move_U3)
+
+        b_move_L3 = tk.Button(text="L3/L'", height=1, width=10, command=lambda: self.make_move("L3"))
+        self.canvas.create_window(20 + 6 * self.square_size + 2 * self.button_size["width"],
+                                  10 + 7.5 * self.button_size["height"], anchor=tk.NW, window=b_move_L3)
+
+        b_move_F3 = tk.Button(text="F3/F'", height=1, width=10, command=lambda: self.make_move("F3"))
+        self.canvas.create_window(20 + 6 * self.square_size + 2 * self.button_size["width"],
+                                  10 + 8 * self.button_size["height"], anchor=tk.NW, window=b_move_F3)
+
+        b_move_R3 = tk.Button(text="R3/R'", height=1, width=10, command=lambda: self.make_move("R3"))
+        self.canvas.create_window(20 + 6 * self.square_size + 2 * self.button_size["width"],
+                                  10 + 8.5 * self.button_size["height"], anchor=tk.NW, window=b_move_R3)
+
+        b_move_B3 = tk.Button(text="B3/B'", height=1, width=10, command=lambda: self.make_move("B3"))
+        self.canvas.create_window(20 + 6 * self.square_size + 2 * self.button_size["width"],
+                                  10 + 9 * self.button_size["height"], anchor=tk.NW, window=b_move_B3)
+
+        b_move_D3 = tk.Button(text="D3/D'", height=1, width=10, command=lambda: self.make_move("D3"))
+        self.canvas.create_window(20 + 6 * self.square_size + 2 * self.button_size["width"],
+                                  10 + 9.5 * self.button_size["height"], anchor=tk.NW, window=b_move_D3)
+
+
+    def create_textbox(self):
+        text_width = 70
+        text_height = 8
+        self.text_box = tk.Text(self.canvas, height=text_height, width=text_width)
+        self.text_box['state'] = tk.DISABLED
+        self.canvas.create_window(self.canvas_size["width"] - self.font_size * text_width - 10, 10, anchor=tk.NW, window=self.text_box)
+
+    def create_cube_view(self):
+        offsets = [(0, 1), (1, 0), (1, 1), (1, 2), (1, 3), (2, 1)]
+        for face in range(6):
+            for row in range(3):
+                x = (row + offsets[face][1] * 3) * self.square_size + 10
+                for col in range(3):
+                    y = (col + offsets[face][0] * 3) * self.square_size + 10
+                    self.kostka_squares[face][col][row] = self.canvas.create_rectangle(x, y, x + self.square_size, y + self.square_size, fill="gray")
+                    if [row, col] == [1, 1]:
+                        self.canvas.create_text(x + self.square_size // 2, y + self.square_size // 2, font=("", 14), text=str(enums.Face(face)), state=tk.DISABLED)
+
+    def update_cube(self):
+        s = self.kostka.get_string()
+        i = 0
+        for face in range(6):
+            for row in range(3):
+                for col in range(3):
+                    self.canvas.itemconfig(self.kostka_squares[face][row][col], fill=str(enums.Color(enums.to_Face(s[i]))))
+                    i += 1
+
+    def clear_cube(self):
+        self.kostka.clear()
+        self.update_cube()
+
+    def write_text(self, text):
+        self.text_box['state'] = tk.NORMAL
+        self.text_box.insert(tk.END, text + "\n")
+        self.text_box.see(tk.END)
+        self.text_box['state'] = tk.DISABLED
+
+    def get_solution(self):
+        s = cube.convert_strings(self.kostka.get_string(), False)
+        solution = solver.solve(s)
+        self.write_text("Cube string:")
+        self.write_text(s)
+        self.write_text("Solution:")
+        self.write_text(solution)
+        return solution
+
+    def solve(self):
+        solution = self.get_solution()
+        solution = solution.split(" ")
+        solution.pop()
+        if solution:
+            self.make_moves((len(solution), solution))
+
+    def make_moves(self, args):
+        (i, solution) = args
+        if i == 0:
             return
+        self.kostka.make_move(solution.pop(0))
+        self.update_cube()
+        self.root.after(1000, self.make_moves, (i - 1, solution))
 
-        cube.make_move(solution[i])
-        update_facelet_rects()
+    def make_move(self, move):
+        self.kostka.make_move(move)
+        self.update_cube()
 
-        root.after(1000, perform_moves, (i + 1, solution))
-
-    def clean():
-        cube.clear()
-        update_facelet_rects()
-
-    def randomize():
+    def scramble(self):
+        self.kostka.clear()
         moves = []
         length = 15
         moves_base = ["U", "R", "F", "D", "L", "B"]
@@ -70,228 +208,30 @@ def start_gui(cube):
             if i != 0:
                 moves_vec.remove(last_move)
 
-            move_index = random.randint(0, len(moves_vec)-1)
-            n = random.randint(1, 3)
+            move_index = rand.randint(0, len(moves_vec)-1)
+            n = rand.randint(1, 3)
 
             last_move = moves_vec[move_index]
             moves.append(moves_vec[move_index] + str(n))
 
-        show_text("Scramble:")
+        self.write_text("Scramble:")
         moves_str = " ".join(moves)
-        show_text(moves_str)
+        self.write_text(moves_str)
 
         for move in moves:
-            cube.make_move(move)
-        update_facelet_rects()
+            self.kostka.make_move(move)
+        self.update_cube()
 
-    def show_text(txt):
-        print(txt)
-        display.insert(INSERT, txt + "\n")
-        root.update_idletasks()
+    def start_camera(self):
+        self.camera_flag = True
+        self.update_camera()
 
-    def create_facelet_rects(a):
-        offset = ((1, 0), (2, 1), (1, 1), (1, 2), (0, 1), (3, 1))
-        for f in range(6):
-            for row in range(3):
-                y = 10 + offset[f][1] * 3 * a + row * a
-                for col in range(3):
-                    x = 10 + offset[f][0] * 3 * a + col * a
-                    facelet_id[f][row][col] = canvas.create_rectangle(x, y, x + a, y + a, fill="grey")
-                    if row == 1 and col == 1:
-                        canvas.create_text(x + width // 2, y + width // 2, font=("", 14), text=t[f], state=DISABLED)
-        for f in range(6):
-            canvas.itemconfig(facelet_id[f][1][1], fill=cols[f])
-
-    def update_facelet_rects():
-        s = convert_strings(cube.get_string(), False)
-        i = 0
-        for f in range(6):
-            for row in range(3):
-                for col in range(3):
-                    canvas.itemconfig(facelet_id[f][row][col], fill=colors[s[i]])
-                    i += 1
-
-    def move_U():
-        cube.make_move("U")
-        update_facelet_rects()
-
-    def move_L():
-        cube.make_move("L")
-        update_facelet_rects()
-
-    def move_F():
-        cube.make_move("F")
-        update_facelet_rects()
-
-    def move_R():
-        cube.make_move("R")
-        update_facelet_rects()
-
-    def move_B():
-        cube.make_move("B")
-        update_facelet_rects()
-
-    def move_D():
-        cube.make_move("D")
-        update_facelet_rects()
-
-    def move_U2():
-        cube.make_move("U2")
-        update_facelet_rects()
-    def move_L2():
-        cube.make_move("L2")
-        update_facelet_rects()
-    def move_F2():
-        cube.make_move("F2")
-        update_facelet_rects()
-    def move_R2():
-        cube.make_move("R2")
-        update_facelet_rects()
-    def move_B2():
-        cube.make_move("B2")
-        update_facelet_rects()
-    def move_D2():
-        cube.make_move("D2")
-        update_facelet_rects()
-
-    def move_U3():
-        cube.make_move("U3")
-        update_facelet_rects()
-    def move_L3():
-        cube.make_move("L3")
-        update_facelet_rects()
-    def move_F3():
-        cube.make_move("F3")
-        update_facelet_rects()
-    def move_R3():
-        cube.make_move("R3")
-        update_facelet_rects()
-    def move_B3():
-        cube.make_move("B3")
-        update_facelet_rects()
-    def move_D3():
-        cube.make_move("D3")
-        update_facelet_rects()
-
-    def move_x():
-        cube.make_move("x")
-        update_facelet_rects()
-
-    def move_y():
-        cube.make_move("y")
-        update_facelet_rects()
-
-    def move_z():
-        cube.make_move("z")
-        update_facelet_rects()
-
-    def start_kamera():
-        global close_camera
-        close_camera = False
-        camera = cv2.VideoCapture(2)
-        update_kamera(camera)
-
-    def update_kamera(camera):
-        global close_camera, face_colors, last_valid
-        if close_camera:
+    def update_camera(self):
+        if self.camera_flag is False:
             cv2.destroyAllWindows()
             return
-        face_colors = kamera.get_image(camera)
-        if face_colors[1, 1] != enums.ColorCamera.Undetected:
-            last_valid = face_colors
-        root.after(50, update_kamera, camera)
+        face_colors = vision.detect_cube(self.camera)
+        self.root.after(20, self.update_camera)
 
-    def close_kamera():
-        global close_camera
-        close_camera = True
-
-    def import_face():
-        global last_valid
-        cube.update_face(last_valid)
-        update_facelet_rects()
-
-    root = Tk()
-    root.wm_title("Kostka_symulacja_solver")
-    canvas = Canvas(root, width=15 * width + 20, height=9.5 * width + 20)
-    canvas.pack()
-
-    # buttons
-    bstart_kamera = Button(text="Start camera", height=2, width=10, relief=RAISED, command=start_kamera)
-    bstart_kamera_window = canvas.create_window(10, 10, anchor=NW, window=bstart_kamera)
-    bclose_kamera = Button(text="Close camera", height=2, width=10, relief=RAISED, command=close_kamera)
-    bclose_kamera_window = canvas.create_window(10, 10 + width, anchor=NW, window=bclose_kamera)
-    bimport = Button(text="Import face", height=2, width=10, relief=RAISED, command=import_face)
-    bimport_window = canvas.create_window(10, 10 + 2 * width, anchor=NW, window=bimport)
-
-    bgetsolve = Button(text="Get solution", height=2, width=10, relief=RAISED, command=get_solution)
-    bsolve_window = canvas.create_window(10, 20 + 6 * width, anchor=NW, window=bgetsolve)
-    bsolve = Button(text="Solve", height=2, width=10, relief=RAISED, command=solve)
-    bsolve_window = canvas.create_window(10, 20 + 6.8 * width, anchor=NW, window=bsolve)
-    bclean = Button(text="Clean", height=2, width=10, relief=RAISED, command=clean)
-    bclean_window = canvas.create_window(10, 20 + 7.6 * width, anchor=NW, window=bclean)
-    brand = Button(text="Randomise", height=2, width=10, relief=RAISED, command=randomize)
-    brand_window = canvas.create_window(10, 20 + 8.4 * width, anchor=NW, window=brand)
-
-    # move buttons
-    bmoveU = Button(text="U", height=1, width=10, relief=RAISED, command=move_U)
-    bmoveU_window = canvas.create_window(10 + 6.5 * width, 6.5 * width, anchor=NW, window=bmoveU)
-    bmoveL = Button(text="L", height=1, width=10, relief=RAISED, command=move_L)
-    bmoveL_window = canvas.create_window(10 + 6.5 * width, 7 * width, anchor=NW, window=bmoveL)
-    bmoveF = Button(text="F", height=1, width=10, relief=RAISED, command=move_F)
-    bmoveF_window = canvas.create_window(10 + 6.5 * width, 7.5 * width, anchor=NW, window=bmoveF)
-    bmoveR = Button(text="R", height=1, width=10, relief=RAISED, command=move_R)
-    bmoveR_window = canvas.create_window(10 + 6.5 * width, 8 * width, anchor=NW, window=bmoveR)
-    bmoveB = Button(text="B", height=1, width=10, relief=RAISED, command=move_B)
-    bmoveB_window = canvas.create_window(10 + 6.5 * width, 8.5 * width, anchor=NW, window=bmoveB)
-    bmoveD = Button(text="D", height=1, width=10, relief=RAISED, command=move_D)
-    bmoveD_window = canvas.create_window(10 + 6.5 * width, 9 * width, anchor=NW, window=bmoveD)
-
-    # double move
-    bmoveU2 = Button(text="U2", height=1, width=10, relief=RAISED, command=move_U2)
-    bmoveU2_window = canvas.create_window(10 + 8 * width, 6.5 * width, anchor=NW, window=bmoveU2)
-    bmoveL2 = Button(text="L2", height=1, width=10, relief=RAISED, command=move_L2)
-    bmoveL2_window = canvas.create_window(10 + 8 * width, 7 * width, anchor=NW, window=bmoveL2)
-    bmoveF2 = Button(text="F2", height=1, width=10, relief=RAISED, command=move_F2)
-    bmoveF2_window = canvas.create_window(10 + 8 * width, 7.5 * width, anchor=NW, window=bmoveF2)
-    bmoveR2 = Button(text="R2", height=1, width=10, relief=RAISED, command=move_R2)
-    bmoveR2_window = canvas.create_window(10 + 8 * width, 8 * width, anchor=NW, window=bmoveR2)
-    bmoveB2 = Button(text="B2", height=1, width=10, relief=RAISED, command=move_B2)
-    bmoveB2_window = canvas.create_window(10 + 8 * width, 8.5 * width, anchor=NW, window=bmoveB2)
-    bmoveD2 = Button(text="D2", height=1, width=10, relief=RAISED, command=move_D2)
-    bmoveD2_window = canvas.create_window(10 + 8 * width, 9 * width, anchor=NW, window=bmoveD2)
-
-    # prim move
-    bmoveU3 = Button(text="U3", height=1, width=10, relief=RAISED, command=move_U3)
-    bmoveU3_window = canvas.create_window(10 + 9.5 * width, 6.5 * width, anchor=NW, window=bmoveU3)
-    bmoveL3 = Button(text="L3", height=1, width=10, relief=RAISED, command=move_L3)
-    bmoveL3_window = canvas.create_window(10 + 9.5 * width, 7 * width, anchor=NW, window=bmoveL3)
-    bmoveF3 = Button(text="F3", height=1, width=10, relief=RAISED, command=move_F3)
-    bmoveF3_window = canvas.create_window(10 + 9.5 * width, 7.5 * width, anchor=NW, window=bmoveF3)
-    bmoveR3 = Button(text="R3", height=1, width=10, relief=RAISED, command=move_R3)
-    bmoveR3_window = canvas.create_window(10 + 9.5 * width, 8 * width, anchor=NW, window=bmoveR3)
-    bmoveB3 = Button(text="B3", height=1, width=10, relief=RAISED, command=move_B3)
-    bmoveB3_window = canvas.create_window(10 + 9.5 * width, 8.5 * width, anchor=NW, window=bmoveB3)
-    bmoveD3 = Button(text="D3", height=1, width=10, relief=RAISED, command=move_D3)
-    bmoveD3_window = canvas.create_window(10 + 9.5 * width, 9 * width, anchor=NW, window=bmoveD3)
-
-    # flip
-    bmovex= Button(text="x", height=3, width=5, relief=RAISED, command=move_x)
-    bmovex_window = canvas.create_window(10 + 11 * width, 6.5 * width, anchor=NW, window=bmovex)
-    bmovey= Button(text="y", height=3, width=5, relief=RAISED, command=move_y)
-    bmovey_window = canvas.create_window(10 + 11 * width, 7.5 * width, anchor=NW, window=bmovey)
-    bmovez= Button(text="z", height=3, width=5, relief=RAISED, command=move_z)
-    bmovez_window = canvas.create_window(10 + 11 * width, 8.5 * width, anchor=NW, window=bmovez)
-
-    # inputs for camera params
-    #gaus_blur = Entry(textvariable=kamera_params.GAUSSIAN_BLUR)
-    #gaus_blur_window = canvas.create_window(10 + 11 * width, 8.5 * width, anchor=NW, window=gaus_blur)
-
-
-
-    # display and text_window
-    display = Text(height=7, width=39)
-    text_window = canvas.create_window(10 + 6.5 * width, 10 + .5 * width, anchor=NW, window=display)
-    create_facelet_rects(width)
-    update_facelet_rects()
-
-    root.mainloop()
+    def stop_camera(self):
+        self.camera_flag = False
