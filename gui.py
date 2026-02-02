@@ -19,12 +19,12 @@ class Gui:
 
         self.root = tk.Tk()
         self.root.wm_title("Kostka_GUI")
-        my_font = font.nametofont("TkDefaultFont") #.nametofont("TkFixedFont")
+        my_font = font.nametofont("TkDefaultFont")
         my_font.configure(size=self.font_size)
         self.canvas = tk.Canvas(self.root, width=self.canvas_size["width"], height=self.canvas_size["height"])
 
         self.text_box = None
-        self.camera = cv2.VideoCapture(2)
+        self.camera = cv2.VideoCapture(0) # 0 - Webcam, 2 - intel RGB
         self.camera_flag = False
         self.camera_bin_flag = False
 
@@ -156,25 +156,25 @@ class Gui:
 
     def create_vision_sliders(self):
         slider_blur = tk.Scale(self.canvas, from_=0, to=10, orient=tk.HORIZONTAL, label="BlurLevel",
-                               command = lambda val: vision_params.set("GAUSSIAN_BLUR", val))
+                               command = lambda val: self.update_param("GAUSSIAN_BLUR", val))
         slider_blur.set(vision_params.get("GAUSSIAN_BLUR"))
         self.canvas.create_window(20 + 12 * self.square_size, 10 + 3 * self.square_size, anchor=tk.NW,
                                   window=slider_blur)
 
         slider_thr = tk.Scale(self.canvas, from_=0, to=255, orient=tk.HORIZONTAL, label="BinThreshold",
-                               command = lambda val: vision_params.set("BLACK_TRH", val))
+                               command = lambda val: self.update_param("BLACK_TRH", val))
         slider_thr.set(vision_params.get("BLACK_TRH"))
         self.canvas.create_window(20 + 12 * self.square_size, 10 + 4 * self.square_size, anchor=tk.NW,
                                   window=slider_thr)
 
         slider_size_min = tk.Scale(self.canvas, from_=0, to=100, orient=tk.HORIZONTAL, label="SquaresMin",
-                               command = lambda val: vision_params.set("MIN_SQUARE_SIZE", val))
+                               command = lambda val: self.update_param("MIN_SQUARE_SIZE", val))
         slider_size_min.set(vision_params.get("MIN_SQUARE_SIZE"))
         self.canvas.create_window(20 + 12 * self.square_size, 10 + 5 * self.square_size, anchor=tk.NW,
                                   window=slider_size_min)
 
         slider_size_max = tk.Scale(self.canvas, from_=0, to=200, orient=tk.HORIZONTAL, label="SquaresMax",
-                              command = lambda val: vision_params.set("MAX_SQUARE_SIZE", val))
+                              command = lambda val: self.update_param("MAX_SQUARE_SIZE", val))
         slider_size_max.set(vision_params.get("MAX_SQUARE_SIZE"))
         self.canvas.create_window(20 + 12 * self.square_size, 10 + 6 * self.square_size, anchor=tk.NW,
                                   window=slider_size_max)
@@ -268,3 +268,6 @@ class Gui:
 
     def show_binarized(self):
         self.camera_bin_flag = not self.camera_bin_flag
+
+    def update_param(self, param_name, val):
+        vision_params.set(param_name, float(val))
