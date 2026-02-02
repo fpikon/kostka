@@ -31,13 +31,51 @@ def find_squares(image):
 
     return v_bin, squares
 
-def get_center(square):
+def get_coords(square):
     x, y, w, h = cv2.boundingRect(square)
     return x + w // 2, y + h // 2
 
+def get_average_distance(squares):
+    avg_dist = []
+
+    for sq in squares:
+        sq_dist = 0
+        sq_coords = get_coords(sq)
+
+        for sq_2 in squares:
+            sq_2_coords = get_coords(sq_2)
+            dist = (sq_coords[0] - sq_2_coords[0])**2 + (sq_coords[1] - sq_2_coords[1])**2
+            sq_dist += np.sqrt(dist)
+
+        avg_dist.append(sq_dist / len(squares))
+
+    return avg_dist
+
+def find_center(squares):
+    avg_dist = get_average_distance(squares)
+
+    center = squares[np.argmin(avg_dist)]
+    center_coords = get_coords(center)
+    filtered_squares = []
+
+    # usuń zbyt odległe kwadraty
+    for sq in squares:
+        sq_coords = get_coords(sq)
+
+        dist_to_center = np.sqrt((sq_coords[0] - center_coords[0])**2 + (sq_coords[1] - center_coords[1])**2)
+
+        if dist_to_center <= vision_params.get("MAX_SQUARE_SIZE")*2:
+            filtered_squares.append(sq)
+
+    # poprawienie środka
+    avg_dist = get_average_distance(squares)
+    center = squares[np.argmin(avg_dist)]
+
+    return filtered_squares, center
+
 def sort_squares_robust(squares, rows=3):
     # Get centers
-    centers = [(sq, get_center(sq)) for sq in squares]
+    centers = [(sq, get_coords(sq)) for sq in squares]
 
     # Sort by Y first
     centers.sort(key=lambda x: x[1][1])
@@ -89,6 +127,11 @@ def detect_cube(camera, show_binarized):
     frame_blur = cv2.GaussianBlur(frame, (5, 5), vision_params.get("GAUSSIAN_BLUR"))
 
     frame_bin, squares = find_squares(frame_blur)
+    center = []
+
+    if squares:
+        squares, center = find_center(squares)
+
 
     if len(squares) == 9:
         squares = sort_squares_robust(squares)
@@ -108,8 +151,8 @@ def detect_cube(camera, show_binarized):
                         (0, 255, 0), 1)
             i += 1
 
-
     cv2.drawContours(frame, squares, -1, (0, 255, 0), 1)
+    cv2.drawContours(frame, center, -1, (0, 0, 255), 4)
 
     cv2.imshow('camera', frame)
     if show_binarized:

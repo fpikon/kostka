@@ -59,5 +59,5 @@ def get(key):
     return load()[key]
 
 def set(key, value):
-    load()[key] = float(value)
+    load()[key] = value
     save()
