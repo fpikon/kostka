@@ -9,32 +9,30 @@ DEFAULTS = {
     "GAUSSIAN_BLUR": 5.,
     "MIN_SQUARE_SIZE": 10.,
     "MAX_SQUARE_SIZE": 100.,
-    "COLOR_RANGES": {
-        Color.White: (
-            [0, 0, 200],
-            [180, 40, 255]
-        ),
-        Color.Yellow: (
-            [20, 100, 100],
-            [30, 255, 255]
-        ),
-        Color.Blue: (
-            [100, 150, 50],
-            [140, 255, 255]
-        ),
-        Color.Green: (
-            [40, 70, 70],
-            [80, 255, 255]
-        ),
-        Color.Red: (
-            [0, 120, 70],
-            [10, 255, 255]
-        ),
-        Color.Orange: (
-            [10, 150, 150],
-            [20, 255, 255]
-        ),
-    },
+    "WHITE_RANGE": (
+        [0, 200],
+        [40, 255]
+    ),
+    "RED_RANGE": (
+        0,
+        10
+    ),
+    "ORANGE_RANGE": (
+        10,
+        20
+    ),
+    "YELLOW_RANGE": (
+        20, 
+        30
+    ),
+    "GREEN_RANGE": (
+        40,
+        80
+    ),
+    "BLUE_RANGE": (
+        80,
+        140
+    )
 }
 
 _settings = None

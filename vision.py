@@ -1,3 +1,4 @@
+import copy
 import cv2
 import numpy as np
 import vision_params
@@ -33,7 +34,14 @@ def find_squares(image):
 
 def get_coords(square):
     x, y, w, h = cv2.boundingRect(square)
-    return x + w // 2, y + h // 2
+    return [x + w // 2, y + h // 2]
+
+def make_square(coords, length):
+    x = coords[0]
+    y = coords[1]
+    a = length // 2
+    square = [[[x - a, y - a]], [[x - a, y + a]], [[x + a, y + a]], [[x + a, y - a]]]
+    return np.asarray(square, dtype = np.int32)
 
 def get_average_distance(squares):
     avg_dist = [0 for _ in range(len(squares))]
@@ -41,9 +49,8 @@ def get_average_distance(squares):
     for i in range(len(squares)):
         sq = squares[i]
         sq_coords = get_coords(sq)
-
-        for j in range(i, len(sq_coords)):
-            sq_2 = sq_coords[j]
+        for j in range(i, len(squares)):
+            sq_2 = squares[j]
             sq_2_coords = get_coords(sq_2)
             dist = (sq_coords[0] - sq_2_coords[0])**2 + (sq_coords[1] - sq_2_coords[1])**2
             dist = np.sqrt(dist)
@@ -76,7 +83,38 @@ def find_center(squares):
 
     return filtered_squares, center
 
-def sort_squares_robust(squares, rows=3):
+def reflect_squares(squares, center):
+    new_squares = copy.deepcopy(squares)
+    center_coords = np.asarray(get_coords(center))
+
+    for sq in squares:
+        duplicate = False
+        if (sq == center).all():
+            continue
+        sq_coords = np.asarray(get_coords(sq))
+
+        moved_coords = sq_coords - center_coords
+
+        reflected_coords = -1 * moved_coords + center_coords
+
+        for sq_check in squares:
+            sq2_coords = np.asarray(get_coords(sq_check))
+
+            dist = np.sqrt(np.sum(np.power(reflected_coords-sq2_coords, 2)))
+
+            if dist <= vision_params.get("MIN_SQUARE_SIZE"):
+                duplicate = True
+
+        if duplicate:
+            continue
+
+        new_sq = make_square(reflected_coords, vision_params.get("MIN_SQUARE_SIZE"))
+
+        new_squares.append(new_sq)
+
+    return new_squares
+
+def sort_squares(squares, rows=3):
     # Get centers
     centers = [(sq, get_coords(sq)) for sq in squares]
 
@@ -104,21 +142,31 @@ def sort_squares_robust(squares, rows=3):
 
 def detect_color(image):
     hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-
+    h, s, v = cv2.split(hsv)
+    mean_h = int(np.mean(h))
     max_pixels = 0
     detected_color = enums.Color.Undetected
 
-    for color, (lower, upper) in vision_params.get("COLOR_RANGES").items():
-        lower = np.array(lower)
-        upper = np.array(upper)
-        mask = cv2.inRange(hsv, lower, upper)
-        count = cv2.countNonZero(mask)
+    for i in range(6):
+        color = enums.Color(i)
+        ranges = vision_params.get(str(color).upper() + "_RANGE")
+        upper = ranges[1]
+        lower = ranges[0]
+        if color != enums.Color.White: # jak nie biały
+            mask = cv2.inRange(h, lower, upper)
+            count = cv2.countNonZero(mask)
+        else:
+            lower = np.array(lower)
+            upper = np.array(upper)
+            wh_mask = cv2.inRange(cv2.merge([s, v]), lower, upper)
+            count = cv2.countNonZero(wh_mask)
+
 
         if count > max_pixels:
             max_pixels = count
             detected_color = color
 
-    return detected_color
+    return detected_color, mean_h
 
 def detect_cube(camera, show_binarized):
     ret, frame = camera.read()
@@ -126,18 +174,33 @@ def detect_cube(camera, show_binarized):
 
     detected_colors = np.zeros((3, 3), dtype=np.uint8) * vision_params.Color.Undetected
 
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    frame_h, frame_s, frame_v = cv2.split(hsv)
+    h_mask = cv2.inRange(frame_h, 0, 160)
+    frame_h = cv2.bitwise_and(h_mask, frame_h)
+    frame = cv2.merge([frame_h, frame_s, frame_v])
+    frame = cv2.cvtColor(frame, cv2.COLOR_HSV2BGR)
+
+    ranges = vision_params.get("WHITE_RANGE")
+    upper = np.array(ranges[1])
+    lower = np.array(ranges[0])
+    wh_mask = cv2.inRange(cv2.merge([frame_s, frame_v]), lower, upper)
+
+
+
     # blur
     frame_blur = cv2.GaussianBlur(frame, (5, 5), vision_params.get("GAUSSIAN_BLUR"))
 
     frame_bin, squares = find_squares(frame_blur)
     center = []
+    cv2.drawContours(frame, squares, -1, (255, 255, 255), 1)
 
     if squares:
         squares, center = find_center(squares)
-
+        squares = reflect_squares(squares, center)
 
     if len(squares) == 9:
-        squares = sort_squares_robust(squares)
+        squares = sort_squares(squares)
         i = 0
         for square in squares:
             row = i // 3
@@ -147,10 +210,9 @@ def detect_cube(camera, show_binarized):
             pad = 1
 
             cropped_square = frame_blur[y + pad:y + h - pad, x + pad:x + w - pad]
-
-            detected_color = detect_color(cropped_square)
+            detected_color, mean_h = detect_color(cropped_square)
             detected_colors[row, col] = detected_color
-            cv2.putText(frame, f"{(row, col)}" + str(enums.Color(int(detected_color))), (x + 10, y + 30), cv2.FONT_HERSHEY_SIMPLEX, 0.3,
+            cv2.putText(frame, f"{(mean_h)}" + str(enums.Color(int(detected_color))), (x, y+20), cv2.FONT_HERSHEY_SIMPLEX, 0.3,
                         (0, 255, 0), 1)
             i += 1
 
@@ -160,5 +222,6 @@ def detect_cube(camera, show_binarized):
     cv2.imshow('camera', frame)
     if show_binarized:
         cv2.imshow('binarized', frame_bin)
+        cv2.imshow('wh_mask', wh_mask)
 
     return detected_colors
