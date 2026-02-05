@@ -27,6 +27,7 @@ class Gui:
         self.camera = cv2.VideoCapture(2) # 0 - Webcam, 2 - intel RGB
         self.camera_flag = False
         self.camera_bin_flag = False
+        self.last_detection = None
 
         self.kostka = cube.Cube()
         self.kostka_squares = [[[0 for col in range(3)] for row in range(3)] for face in range(6)]
@@ -62,6 +63,9 @@ class Gui:
 
         but_camera_bin = tk.Button(self.root, text="Binary camera view", height=2, width=20, command=self.show_binarized)
         self.canvas.create_window(10, 10 + 9 * self.button_size["height"], anchor=tk.NW, window=but_camera_bin)
+
+        but_detect = tk.Button(self.root, text="Detect face", height=2, width=20, command=self.detect_face)
+        self.canvas.create_window(10, 10 + 10 * self.button_size["height"], anchor=tk.NW, window=but_detect)
 
     def create_buttons_moves(self):
         b_move_U = tk.Button(text="U", height=1, width=10, command=lambda: self.make_move("U"))
@@ -179,23 +183,47 @@ class Gui:
         self.canvas.create_window(20 + 12 * self.square_size, 10 + 6 * self.square_size, anchor=tk.NW,
                                   window=slider_size_max)
         
-        slider_white_s = tk.Scale(self.canvas, from_=0, to=255, orient=tk.HORIZONTAL, label="White_S",
+        slider_white_s = tk.Scale(self.canvas, from_=0, to=255, orient=tk.HORIZONTAL, label="White S",
                               command = lambda val: self.update_white_param("S", val))
         slider_white_s.set(vision_params.get("WHITE_RANGE")[1][0])
         self.canvas.create_window(20 + 12 * self.square_size, 10 + 7 * self.square_size, anchor=tk.NW,
                                   window=slider_white_s)
         
-        slider_white_v = tk.Scale(self.canvas, from_=0, to=255, orient=tk.HORIZONTAL, label="White_V",
+        slider_white_v = tk.Scale(self.canvas, from_=0, to=255, orient=tk.HORIZONTAL, label="White V",
                               command = lambda val: self.update_white_param("V", val))
         slider_white_v.set(vision_params.get("WHITE_RANGE")[0][1])
         self.canvas.create_window(20 + 12 * self.square_size, 10 + 8 * self.square_size, anchor=tk.NW,
                                   window=slider_white_v)
         
-        slider_red_orange = tk.Scale(self.canvas, from_=0, to=50, orient=tk.HORIZONTAL, label="RED-ORANGE",
-                              command = lambda val: self.update_color_param("RED_RANGE", "ORANGE_RANGE", val))
-        slider_red_orange.set(vision_params.get("RED_RANGE")[1])
+        slider_red_orange_sat = tk.Scale(self.canvas, from_=100, to=255, orient=tk.HORIZONTAL, label="RED-ORANGE S",
+                              command = lambda val: self.update_red_orange_param("S", val))
+        slider_red_orange_sat.set(vision_params.get("RED_RANGE")[1][1])
         self.canvas.create_window(20 + 14 * self.square_size, 10 + 3 * self.square_size, anchor=tk.NW,
-                                  window=slider_red_orange)
+                                  window=slider_red_orange_sat)
+
+        slider_red_orange_hue = tk.Scale(self.canvas, from_=0, to=20, orient=tk.HORIZONTAL, label="RED-ORANGE H",
+                              command = lambda val: self.update_red_orange_param("H", val))
+        slider_red_orange_hue.set(vision_params.get("RED_RANGE")[1][0])
+        self.canvas.create_window(20 + 14 * self.square_size, 10 + 4 * self.square_size, anchor=tk.NW,
+                                  window=slider_red_orange_hue)
+        
+        slider_orange_yellow = tk.Scale(self.canvas, from_=0, to=40, orient=tk.HORIZONTAL, label="ORANGE-YELLOW",
+                              command = lambda val: self.update_orange_yellow_param(val))
+        slider_orange_yellow.set(vision_params.get("ORANGE_RANGE")[1][0])
+        self.canvas.create_window(20 + 14 * self.square_size, 10 + 5 * self.square_size, anchor=tk.NW,
+                                  window=slider_orange_yellow)
+        
+        slider_yellow_green = tk.Scale(self.canvas, from_=20, to=80, orient=tk.HORIZONTAL, label="YELLOW-GREEN",
+                              command = lambda val: self.update_color_param("YELLOW_RANGE", "GREEN_RANGE", val))
+        slider_yellow_green.set(vision_params.get("YELLOW_RANGE")[1])
+        self.canvas.create_window(20 + 14 * self.square_size, 10 + 6 * self.square_size, anchor=tk.NW,
+                                  window=slider_yellow_green)
+        
+        slider_green_blue = tk.Scale(self.canvas, from_=60, to=160, orient=tk.HORIZONTAL, label="GREEN-BLUE",
+                              command = lambda val: self.update_color_param("GREEN_RANGE", "BLUE_RANGE", val))
+        slider_green_blue.set(vision_params.get("GREEN_RANGE")[1])
+        self.canvas.create_window(20 + 14 * self.square_size, 10 + 7 * self.square_size, anchor=tk.NW,
+                                  window=slider_green_blue)
 
     def update_cube(self):
         s = self.kostka.get_string()
@@ -278,7 +306,7 @@ class Gui:
         if self.camera_flag is False:
             cv2.destroyAllWindows()
             return
-        face_colors = vision.detect_cube(self.camera, self.camera_bin_flag)
+        self.last_detection = vision.detect_cube(self.camera, self.camera_bin_flag)
         self.root.after(20, self.update_camera)
 
     def stop_camera(self):
@@ -292,16 +320,37 @@ class Gui:
 
     def update_white_param(self, param, val):
         wh_range = vision_params.get("WHITE_RANGE")
-        print(wh_range)
 
         if param == "S":
             wh_range[1][0] = int(val)
         else:
             wh_range[0][1] = int(val)
 
-        print(wh_range)
-
         vision_params.set("WHITE_RANGE", wh_range)
+    
+    def update_red_orange_param(self, param, val):
+        or_range = vision_params.get("ORANGE_RANGE")
+        red_range = vision_params.get("RED_RANGE")
+
+        if param == "H":
+            or_range[0][0] = int(val)
+            red_range[1][0] = int(val)
+        else:
+            or_range[1][1] = int(val)
+            red_range[0][1] = int(val)
+
+        vision_params.set("ORANGE_RANGE", or_range)
+        vision_params.set("RED_RANGE", red_range)
+    
+    def update_orange_yellow_param(self, val):
+        or_range = vision_params.get("ORANGE_RANGE")
+        yel_range = vision_params.get("YELLOW_RANGE")
+
+        or_range[1][0] = int(val)
+        yel_range[0] = int(val)
+
+        vision_params.set("ORANGE_RANGE", or_range)
+        vision_params.set("YELLOW_RANGE", yel_range)        
     
     def update_color_param(self, color_1, color_2, val):
         c1_range = vision_params.get(color_1)
@@ -313,4 +362,16 @@ class Gui:
         vision_params.set(color_1, c1_range)
         vision_params.set(color_2, c2_range)
 
+    def detect_face(self):
+        if self.last_detection is None:
+            return
         
+        if (self.last_detection == enums.Color.Undetected).any():
+            self.write_text("There is undetected color on the cube!!!")
+            return
+
+        center = self.last_detection[1, 1]
+        self.write_text(f"Detected face: {str(enums.Face(center))} ({str(enums.Color(center))})")
+
+        self.kostka.update_face(self.last_detection)
+        self.update_cube()

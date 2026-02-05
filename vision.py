@@ -141,9 +141,10 @@ def sort_squares(squares, rows=3):
     return sorted_squares
 
 def detect_color(image):
+    x, y, z = image.shape
     hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
     h, s, v = cv2.split(hsv)
-    mean_h = int(np.mean(h))
+    
     max_pixels = 0
     detected_color = enums.Color.Undetected
 
@@ -152,21 +153,29 @@ def detect_color(image):
         ranges = vision_params.get(str(color).upper() + "_RANGE")
         upper = ranges[1]
         lower = ranges[0]
-        if color != enums.Color.White: # jak nie biały
-            mask = cv2.inRange(h, lower, upper)
-            count = cv2.countNonZero(mask)
-        else:
+        if color == enums.Color.White: # jak biały to szukamy w saturation i value
             lower = np.array(lower)
             upper = np.array(upper)
             wh_mask = cv2.inRange(cv2.merge([s, v]), lower, upper)
             count = cv2.countNonZero(wh_mask)
+        elif color == enums.Color.Red or color == enums.Color.Orange: # do rozrużniania pomarańczowego i czerwonego czukamy w Hue i saturation
+            lower = np.array(lower)
+            upper = np.array(upper)
+            mask = cv2.inRange(cv2.merge([h, s]), lower, upper)
+            count = cv2.countNonZero(mask)
+        else:
+            mask = cv2.inRange(h, lower, upper)
+            count = cv2.countNonZero(mask)
 
 
         if count > max_pixels:
             max_pixels = count
             detected_color = color
+        
+        if count > 1/2 * x*y: # jak ponad połowa jest wykryta to wychodzimy
+            break
 
-    return detected_color, mean_h
+    return detected_color
 
 def detect_cube(camera, show_binarized):
     ret, frame = camera.read()
@@ -210,10 +219,11 @@ def detect_cube(camera, show_binarized):
             pad = 1
 
             cropped_square = frame_blur[y + pad:y + h - pad, x + pad:x + w - pad]
-            detected_color, mean_h = detect_color(cropped_square)
+            detected_color = detect_color(cropped_square)
             detected_colors[row, col] = detected_color
-            cv2.putText(frame, f"{(mean_h)}" + str(enums.Color(int(detected_color))), (x, y+20), cv2.FONT_HERSHEY_SIMPLEX, 0.3,
+            cv2.putText(frame, str(enums.Color(int(detected_color))), (x, y+20), cv2.FONT_HERSHEY_SIMPLEX, 0.3,
                         (0, 255, 0), 1)
+
             i += 1
 
     cv2.drawContours(frame, squares, -1, (0, 255, 0), 1)

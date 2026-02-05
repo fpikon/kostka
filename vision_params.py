@@ -10,28 +10,28 @@ DEFAULTS = {
     "MIN_SQUARE_SIZE": 10.,
     "MAX_SQUARE_SIZE": 100.,
     "WHITE_RANGE": (
-        [0, 200],
+        [0, 200], # saturation, value
         [40, 255]
     ),
     "RED_RANGE": (
-        0,
-        10
+        [0, 180], # hue, saturation
+        [10, 255]
     ),
     "ORANGE_RANGE": (
-        10,
-        20
+        [10, 0],# hue, saturation
+        [20, 180]
     ),
     "YELLOW_RANGE": (
-        20, 
+        20, # hue
         30
     ),
     "GREEN_RANGE": (
-        40,
+        40, # hue
         80
     ),
     "BLUE_RANGE": (
-        80,
-        140
+        80, # hue
+        160
     )
 }
 
